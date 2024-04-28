@@ -1,8 +1,10 @@
 import ccxt
 import time
 import traceback
-
+from Config import BINANCE_CONFIG
 from Logger import get_logger
+
+DEBUG_ENABLED = True
 
 class BinanceArbBot:
     def __init__(self, exchange: ccxt.binance, coin: str, future_date: str, coin_precision: float, 
@@ -10,6 +12,10 @@ class BinanceArbBot:
                  amount: float, num_maximum: int, threshold: float, max_trial: int):
                  
         self.exchange = exchange
+        self.exchange_futures = ccxt.binance(BINANCE_CONFIG)
+        self.exchange_futures.options = {'defaultType': 'delivery',
+                                                    'adjustForTimeDifference': True
+                                                    }
         self.coin = coin
         self.future_date = future_date
         self.coin_precision = coin_precision
@@ -60,6 +66,10 @@ class BinanceArbBot:
 
         return order_info
 
+    def get_futures_balance(self):
+        futures_balance_info = self.exchange_futures.fetch_balance()
+        self.logger.debug(f"getting {self.coin} futures balance")
+        return float(futures_balance_info[self.coin]['free'])
 
     def binance_future_place_order(self, symbol: str, direction: str, price: float, amount: int):
 
@@ -202,7 +212,7 @@ class BinanceArbBot:
             operator = '>' if spot_ask1 > coin_bid1 else '<'
             self.logger.info('Spot %.4f %s COIN-M %.4f -> Price Difference: %.4f%%' % (float(spot_ask1), operator, float(coin_bid1), r * 100))
 
-            if abs(self.state.get('start_spread') - r < self.threshold):
+            if abs(self.state.get('open_spread') - r < self.threshold) and not DEBUG_ENABLED:
                 self.logger.info('Spread difference SMALLER than threshold >>> Retrying...')
             else:
                 self.logger.debug('Spread difference GREATER than threshold >>> Stopping arbitrage...')
@@ -229,7 +239,7 @@ class BinanceArbBot:
                 params = {
                     'currency': self.coin,
                     'amount': self.amount,
-                    'amount': contract_num,
+                    'amount': self.get_futures_balance(),
                     'from_account': 'coin-margin', 
                     'to_account': 'spot',
                 }
