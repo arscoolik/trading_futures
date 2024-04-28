@@ -4,14 +4,19 @@ import traceback
 from Config import BINANCE_CONFIG
 from Logger import get_logger
 
-DEBUG_ENABLED = True
-
 class BinanceArbBot:
     def __init__(self, exchange: ccxt.binance, coin: str, future_date: str, coin_precision: float, 
                  slippage: float, spot_fee_rate: float, contract_fee_rate: float, multiplier: dict, 
-                 amount: float, num_maximum: int, threshold: float, max_trial: int):
-                 
-        self.exchange = exchange
+                 amount: float, num_maximum: int, threshold: float, max_trial: int, api_key: str, secret_key: str, debug_enabled: bool):
+        self.debug_enabled = debug_enabled        
+        self.exchange = ccxt.binance({
+                                    'apiKey': api_key,
+                                    'secret': secret_key,
+                                    'timeout': 3000,
+                                    'rateLimit': 10,
+                                    'verbose': False,
+                                    'enableRateLimit': True})
+        
         self.exchange_futures = ccxt.binance(BINANCE_CONFIG)
         self.exchange_futures.options = {'defaultType': 'delivery',
                                                     'adjustForTimeDifference': True
@@ -31,7 +36,7 @@ class BinanceArbBot:
 
         self.spot_symbol = {'type1': coin + 'USDT', 'type2': coin + '/USDT'}
         self.future_symbol = {'type1': coin + 'USD_' + future_date}
-
+    
         self.state = {}
 
 
@@ -212,7 +217,7 @@ class BinanceArbBot:
             operator = '>' if spot_ask1 > coin_bid1 else '<'
             self.logger.info('Spot %.4f %s COIN-M %.4f -> Price Difference: %.4f%%' % (float(spot_ask1), operator, float(coin_bid1), r * 100))
 
-            if abs(self.state.get('open_spread') - r < self.threshold) and not DEBUG_ENABLED:
+            if abs(self.state.get('open_spread') - r < self.threshold) and not self.debug_enabled:
                 self.logger.info('Spread difference SMALLER than threshold >>> Retrying...')
             else:
                 self.logger.debug('Spread difference GREATER than threshold >>> Stopping arbitrage...')
@@ -268,19 +273,23 @@ class BinanceArbBot:
                 print(spot_order_info['average'])
                 print(future_order_info)
 
-            self.logger.info(f"Number of closing executions: {now_execute_num}")
+                self.logger.info(f"Number of closing executions: {now_execute_num}")
 
-            time.sleep(2)
+                # write to csv 2 columns timestamp and balance
+                with open("balance.csv", "a") as f:
+                    f.write(f"{(self.exchange.fetch_balance())['USDT']['free']},{str(time.time())}\n")
+                time.sleep(2)
 
-            if now_execute_num >= self.num_maximum:
-                self.logger.info('Maximum execution number reached >>> Position closing stops.')
+                if now_execute_num >= self.num_maximum:
+                    self.logger.info('Maximum execution number reached >>> Position closing stops.')
+                break
                 
-                exit()
 
     def close_position(self):
             while True:
                 try:
                     self.close_position_utils()
+                    break
                 except Exception as e:
                     self.logger.critical(f'Closing positions FAILED >>> Retrying...')
                     self.logger.warning(traceback.format_exc())
