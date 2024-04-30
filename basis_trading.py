@@ -1,5 +1,4 @@
 import argparse
-import ccxt
 
 from Logger import get_logger
 
@@ -16,6 +15,8 @@ multiplier = {
     'XRP': 10,
     'FIL': 10,
     'ADA': 10,
+    'BCH': 10,
+    'LINK': 10
 }  
 
 def init_argparse():
@@ -56,19 +57,14 @@ if __name__ == '__main__':
     exchange = BA(trading_bot.secret_key, trading_bot.api_key)
     LOGGER = get_logger("Spread Detection")
     
+
     while True:
         trading_bot.coin = get_trading_coin(exchange, LOGGER)
         trading_bot.update_symbols()
         trading_bot.open_position()
-    # ***close positions***
-    # position_parser = init_argparse()
-    # position_parser.add_argument('--amount', type=float, default=10, help="number of coins for one iteration")
-    # position_parser.add_argument('--num_maximum', type=int, default=3, help="maximum execution numbers")
-    # position_parser.add_argument('--threshold', type=int, default=0.0005, help="closing threshold")
-    # args = position_parser.parse_args()
-
-    #trading_bot = BinanceArbBot(**vars(args))
         trading_bot.close_position()
 
+        if args.debug_enabled == True: # only 1 circle in debug mode
+            exit
 
 
