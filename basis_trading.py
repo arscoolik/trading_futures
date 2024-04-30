@@ -3,7 +3,6 @@ import ccxt
 
 from Logger import get_logger
 
-from Config import *
 from BinanceArb import BinanceArbBot
 from detect_spread import *
 
@@ -21,7 +20,7 @@ multiplier = {
 
 def init_argparse():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exchange', default=ccxt.binance(BINANCE_CONFIG), help='exchange')
+    parser.add_argument('--exchange', default='', help='exchange')
     parser.add_argument('--coin', type=str, default='ada'.upper())
     parser.add_argument('--future_date', type=str, default='221230', help='expiration date')
     parser.add_argument('--coin_precision', type=int, default=2, help="price precision")
@@ -44,9 +43,6 @@ def get_trading_coin(exchange, LOGGER):
 
 
 if __name__ == '__main__':
-    exchange = BA()
-    LOGGER = get_logger("Spread Detection")
-    
 
     # ***open positions***
     position_parser = init_argparse()
@@ -56,9 +52,13 @@ if __name__ == '__main__':
     args = position_parser.parse_args()
 
     trading_bot = BinanceArbBot(**vars(args))
+
+    exchange = BA(trading_bot.secret_key, trading_bot.api_key)
+    LOGGER = get_logger("Spread Detection")
     
     while True:
         trading_bot.coin = get_trading_coin(exchange, LOGGER)
+        trading_bot.update_symbols()
         trading_bot.open_position()
     # ***close positions***
     # position_parser = init_argparse()

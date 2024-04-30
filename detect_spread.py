@@ -6,12 +6,17 @@ pd.set_option('expand_frame_repr', True)
 pd.set_option("display.max_rows", 500)
 
 from Logger import get_logger
-from Config import BINANCE_CONFIG
 
 class BA(ccxt.binance):
 
-    def __init__(self):
-        super().__init__(BINANCE_CONFIG)
+    def __init__(self, secret_key, api_key):
+        super().__init__({
+                                    'apiKey': api_key,
+                                    'secret': secret_key,
+                                    'timeout': 3000,
+                                    'rateLimit': 10,
+                                    'verbose': False,
+                                    'enableRateLimit': True}))
         self.time_interval = 1
         self.quarterly_symbols_info = self.__get_quarterly_symbols_info()
         self.spot_fee_rate = 1/1000

@@ -1,7 +1,6 @@
 import ccxt
 import time
 import traceback
-from Config import BINANCE_CONFIG
 from Logger import get_logger
 
 class BinanceArbBot:
@@ -17,10 +16,18 @@ class BinanceArbBot:
                                     'verbose': False,
                                     'enableRateLimit': True})
         
-        self.exchange_futures = ccxt.binance(BINANCE_CONFIG)
+        self.exchange_futures = ccxt.binance({
+                                    'apiKey': api_key,
+                                    'secret': secret_key,
+                                    'timeout': 3000,
+                                    'rateLimit': 10,
+                                    'verbose': False,
+                                    'enableRateLimit': True})
         self.exchange_futures.options = {'defaultType': 'delivery',
                                                     'adjustForTimeDifference': True
                                                     }
+        self.secret_key = secret_key
+        self.api_key = api_key
         self.coin = coin
         self.future_date = future_date
         self.coin_precision = coin_precision
@@ -34,10 +41,13 @@ class BinanceArbBot:
         self.max_trial = max_trial
         self.logger = get_logger("Basis-Trading Starts")
 
-        self.spot_symbol = {'type1': coin + 'USDT', 'type2': coin + '/USDT'}
+        self.spot_symbol = {'type1': coin + 'USDC', 'type2': coin + '/USDC'}
         self.future_symbol = {'type1': coin + 'USD_' + future_date}
     
         self.state = {}
+    def update_symbols(self):
+        self.spot_symbol = {'type1': self.coin + 'USDC', 'type2': self.coin + '/USDC'}
+        self.future_symbol = {'type1': self.coin + 'USD_' + self.future_date}
 
 
     def retry_wrapper(self, func, params=dict(), act_name='', sleep_seconds=5, is_exit=True):
@@ -131,7 +141,7 @@ class BinanceArbBot:
         execute_num = 0
 
         while True:
-            spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice']
+            spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spф]яЯot_symbol['type1']})['bidPrice']
             spot_ask1 = float(spot_ask1)
             coin_bid1 = self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice']
             coin_bid1 = float(coin_bid1)
@@ -215,7 +225,7 @@ class BinanceArbBot:
 
             r = coin_bid1 / spot_ask1 - 1
             operator = '>' if spot_ask1 > coin_bid1 else '<'
-            self.logger.info('Spot %.4f %s COIN-M %.4f -> Price Difference: %.4f%%' % (float(spot_ask1), operator, float(coin_bid1), r * 100))
+            self.logger.info('Spot %.4f %s COIN-M %.4f -> Price Difference: %.4f%%; Original spread: %.4f%%; Currently trading: %s' % (float(spot_ask1), operator, float(coin_bid1), r * 100, self.state.get('open_spread'), self.coin))
 
             if abs(self.state.get('open_spread') - r < self.threshold) and not self.debug_enabled:
                 self.logger.info('Spread difference SMALLER than threshold >>> Retrying...')
