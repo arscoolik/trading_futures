@@ -16,7 +16,7 @@ class BA(ccxt.binance):
                                     'timeout': 3000,
                                     'rateLimit': 10,
                                     'verbose': False,
-                                    'enableRateLimit': True}))
+                                    'enableRateLimit': True})
         self.time_interval = 1
         self.quarterly_symbols_info = self.__get_quarterly_symbols_info()
         self.spot_fee_rate = 1/1000

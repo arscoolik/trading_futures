@@ -141,7 +141,7 @@ class BinanceArbBot:
         execute_num = 0
 
         while True:
-            spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spф]яЯot_symbol['type1']})['bidPrice']
+            spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice']
             spot_ask1 = float(spot_ask1)
             coin_bid1 = self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice']
             coin_bid1 = float(coin_bid1)
