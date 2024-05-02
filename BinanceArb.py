@@ -225,10 +225,10 @@ class BinanceArbBot:
 
             r = coin_bid1 / spot_ask1 - 1
             operator = '>' if spot_ask1 > coin_bid1 else '<'
-            self.logger.info('Spread now: %.4f%%; \n Spread original: %.4f%%; \n Currently trading: %s' % (r * 100, 100*self.state.get('open_spread'), self.coin))
+            print('Spread now: %.4f%%; \n Spread original: %.4f%%; \n Currently trading: %s' % (r * 100, 100 * self.state.get('open_spread'), self.coin))
 
-            if self.state.get('open_spread') - r < self.threshold and not self.debug_enabled:
-                self.logger.info('Spread difference SMALLER than threshold >>> Retrying...')
+            if self.state.get('open_spread') - r < self.threshold and not self.debug_enabled: 
+                pass
             else:
                 self.logger.debug('Spread difference GREATER than threshold >>> Stopping arbitrage...')
 
