@@ -225,9 +225,9 @@ class BinanceArbBot:
 
             r = coin_bid1 / spot_ask1 - 1
             operator = '>' if spot_ask1 > coin_bid1 else '<'
-            self.logger.info('Spot %.4f %s COIN-M %.4f -> Price Difference: %.4f%%; Original spread: %.4f%%; Currently trading: %s' % (float(spot_ask1), operator, float(coin_bid1), r * 100, self.state.get('open_spread'), self.coin))
+            self.logger.info('Spread now: %.4f%%; \n Spread original: %.4f%%; \n Currently trading: %s' % (r * 100, 100*self.state.get('open_spread'), self.coin))
 
-            if abs(self.state.get('open_spread') - r < self.threshold) and not self.debug_enabled:
+            if self.state.get('open_spread') - r < self.threshold and not self.debug_enabled:
                 self.logger.info('Spread difference SMALLER than threshold >>> Retrying...')
             else:
                 self.logger.debug('Spread difference GREATER than threshold >>> Stopping arbitrage...')
@@ -287,7 +287,7 @@ class BinanceArbBot:
 
                 # write to csv 2 columns timestamp and balance
                 with open("balance.csv", "a") as f:
-                    f.write(f"{(self.exchange.fetch_balance())['USDT']['free']},{str(time.time())}\n")
+                    f.write(f"{(self.exchange.fetch_balance())['USDC']['free']},{str(time.time())}\n")
                 time.sleep(2)
 
                 if now_execute_num >= self.num_maximum:
