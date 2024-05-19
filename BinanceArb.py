@@ -6,7 +6,7 @@ from Logger import get_logger
 class BinanceArbBot:
     def __init__(self, exchange: ccxt.binance, coin: str, future_date: str, coin_precision: float, 
                  slippage: float, spot_fee_rate: float, contract_fee_rate: float, multiplier: dict, 
-                 amount: float, num_maximum: int, threshold: float, max_trial: int, api_key: str, secret_key: str, debug_enabled: bool):
+                 amount: float, num_maximum: int, threshold: float,required_iterations: int, max_trial: int, api_key: str, secret_key: str, debug_enabled: bool):
         self.debug_enabled = debug_enabled        
         self.exchange = ccxt.binance({
                                     'apiKey': api_key,
@@ -38,6 +38,7 @@ class BinanceArbBot:
         self.amount = amount
         self.num_maximum = num_maximum
         self.threshold = threshold
+        self.required_iterations = required_iterations
         self.max_trial = max_trial
         self.logger = get_logger("Basis-Trading Starts")
 
@@ -227,9 +228,15 @@ class BinanceArbBot:
             operator = '>' if spot_ask1 > coin_bid1 else '<'
             print('Spread original: %.4f%%; \n Spread now: %.4f%%; \n Spread to reach: \n Currently trading: %s' % (100 * self.state.get('open_spread'), r * 100, self.state.get('open_spread') * 100 - 0.5, self.coin))
 
+            success_spread_difference_num = 0
             if self.state.get('open_spread') - r < self.threshold and not self.debug_enabled: 
+                success_spread_difference_num = 0
                 pass
             else:
+                success_spread_difference_num += 1
+                if (success_spread_difference_num < self.required_iterations):
+                    continue
+
                 self.logger.debug('Spread difference GREATER than threshold >>> Stopping arbitrage...')
 
                 # contract_num = int(coin_bid1 * self.amount / self.multipler[self.coin]) # Количество контрактов, которые продаются

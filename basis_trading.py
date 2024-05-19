@@ -49,7 +49,8 @@ if __name__ == '__main__':
     position_parser = init_argparse()
     position_parser.add_argument('--amount', type=int, default=20, help="spot trading amount for one iteration")
     position_parser.add_argument('--num_maximum', type=int, default=3, help="maximum execution numbers")
-    position_parser.add_argument('-f', '--threshold', type=float, default=0.005, help="opening threshold")
+    position_parser.add_argument('-f', '--threshold', type=float, default=0.001, help="opening threshold")
+    position_parser.add_argument('--required_iterations', type=int, default=2, help="number of success required iterations")
     args = position_parser.parse_args()
 
     trading_bot = BinanceArbBot(**vars(args))
