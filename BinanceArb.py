@@ -217,7 +217,7 @@ class BinanceArbBot:
 
 
         now_execute_num = 0
-
+        success_spread_difference_num = 0
         while True:
             spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice']
             spot_ask1 = float(spot_ask1)
@@ -226,9 +226,9 @@ class BinanceArbBot:
 
             r = coin_bid1 / spot_ask1 - 1
             operator = '>' if spot_ask1 > coin_bid1 else '<'
-            print('Spread original: %.4f%%; \n Spread now: %.4f%%; \n Spread to reach: \n Currently trading: %s' % (100 * self.state.get('open_spread'), r * 100, self.state.get('open_spread') * 100 - 0.5, self.coin))
+            print('Spread original: %.4f%%; \n Spread now: %.4f%%; \n Spread to reach: \n Currently trading: %s' % (100 * self.state.get('open_spread'), r * 100, self.state.get('open_spread') * 100 - self.threshold * 100, self.coin))
 
-            success_spread_difference_num = 0
+            
             if self.state.get('open_spread') - r < self.threshold and not self.debug_enabled: 
                 success_spread_difference_num = 0
                 pass
