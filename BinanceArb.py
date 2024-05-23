@@ -142,16 +142,10 @@ class BinanceArbBot:
         execute_num = 0
 
         while True:
-            spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice']
-            spot_ask1 = float(spot_ask1)
-            coin_bid1 = self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice']
-            coin_bid1 = float(coin_bid1)
+            spot_ask1 = float(self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice'])
+            coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
 
             r = float(coin_bid1) / float(spot_ask1) - 1
-            operator = '>' if spot_ask1 > coin_bid1 else '<'
-            self.logger.info('Spot %.4f %s COIN-M %.4f -> Price Difference: %.4f%%' % (float(spot_ask1), operator, float(coin_bid1), r * 100))
-
-            self.logger.debug('!!! >>> Starting arbitrage...')
 
             contract_num = self.amount / self.multipler[self.coin] 
             contract_coin_num = contract_num * self.multipler[self.coin] / float(coin_bid1)  
@@ -168,7 +162,6 @@ class BinanceArbBot:
             }
             spot_order_info = self.retry_wrapper(func=self.binance_spot_place_order, params=params, act_name='Long spot orders')
 
-            time.sleep(2)
 
             balance = self.exchange.fetch_balance()
             num = balance[self.coin]['free']
@@ -202,12 +195,7 @@ class BinanceArbBot:
 
             print(spot_order_info['average'])
             print(future_order_info)
-
-            time.sleep(2)
-
-            if execute_num >= self.num_maximum:
-                self.logger.info('Maximum execution number reached >>> Position opening stops.')
-                break
+            break
 
     def close_position_utils(self):
         """close positions for basis trading"""
@@ -219,13 +207,10 @@ class BinanceArbBot:
         now_execute_num = 0
         success_spread_difference_num = 0
         while True:
-            spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice']
-            spot_ask1 = float(spot_ask1)
-            coin_bid1 = self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice']
-            coin_bid1 = float(coin_bid1)
+            spot_ask1 = float(self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice'])
+            coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
 
             r = coin_bid1 / spot_ask1 - 1
-            operator = '>' if spot_ask1 > coin_bid1 else '<'
             print('Spread original: %.4f%%; \n Spread now: %.4f%%; \n Spread to reach: \n Currently trading: %s' % (100 * self.state.get('open_spread'), r * 100, self.state.get('open_spread') * 100 - self.threshold * 100, self.coin))
             if self.state.get('open_spread') - r < self.threshold and not self.debug_enabled: 
                 success_spread_difference_num = 0
@@ -264,8 +249,6 @@ class BinanceArbBot:
                     'to_account': 'spot',
                 }
                 self.retry_wrapper(func=self.binance_account_transfer, params=params, act_name='Transfer (COIN-M --> SPOT)') # TODO: transfer all coins
-
-                time.sleep(2)
                 
                 balance = self.exchange.fetch_balance()
                 num = balance[self.coin]['free']
@@ -290,13 +273,8 @@ class BinanceArbBot:
 
                 self.logger.info(f"Number of closing executions: {now_execute_num}")
 
-                # write to csv 2 columns timestamp and balance
                 with open("balance.csv", "a") as f:
                     f.write(f"{(self.exchange.fetch_balance())['USDC']['free']},{str(time.time())}\n")
-                time.sleep(2)
-
-                if now_execute_num >= self.num_maximum:
-                    self.logger.info('Maximum execution number reached >>> Position closing stops.')
                 break
                 
 
