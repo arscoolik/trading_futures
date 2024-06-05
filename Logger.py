@@ -1,9 +1,3 @@
-'''
-@Description: logger configuration
-@Author: Yang Boyu
-@Email: bradleyboyuyang@gmail.com
-'''
-
 import time
 import logging
 import coloredlogs

@@ -41,7 +41,6 @@ class BinanceArbBot:
         self.required_iterations = required_iterations
         self.max_trial = max_trial
         self.logger = get_logger("Basis-Trading Starts")
-
         self.spot_symbol = {'type1': coin + 'USDC', 'type2': coin + '/USDC'}
         self.future_symbol = {'type1': coin + 'USD_' + future_date}
     
@@ -61,8 +60,8 @@ class BinanceArbBot:
                 result = func(**params)
                 return result
             except Exception as e:
-                print('Function parameters:', params)
                 self.logger.warning(f"{act_name} ({self.exchange.id}) FAIL | Retry after {sleep_seconds} seconds...")
+                self.logger.warning('Retrying function parameters:', params)
                 self.logger.warning(traceback.format_exc())
                 time.sleep(sleep_seconds)
         else:
@@ -106,7 +105,6 @@ class BinanceArbBot:
             'timeInForce': 'GTC',
         }
         params['timestamp'] = int(time.time() * 1000)
-        print(params)
         order_info = self.exchange.dapiPrivatePostOrder(params)
         self.logger.debug(f'({self.exchange.id}) Future orders SUCCESS: {direction} > {symbol} > {amount} > {price}')
         self.logger.debug(f'Order info: {str(order_info)}')
@@ -138,64 +136,74 @@ class BinanceArbBot:
 
         return transfer_info
 
-    def open_position(self):
+    def open_position(self, last_spread, tim, k = 6):
         execute_num = 0
 
         while True:
             spot_ask1 = float(self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice'])
             coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
 
-            r = float(coin_bid1) / float(spot_ask1) - 1
+            r = coin_bid1 / spot_ask1 - 1
+            delt = (time.time() - tim) / 3600
+            if r > last_spread - self.threshold * delt / k:
+                self.logger.info('Spot %.4f < COIN-M %.4f -> Price Difference: %.4f%%' % (float(spot_ask1), float(coin_bid1), r * 100))
 
-            contract_num = self.amount / self.multipler[self.coin] 
-            contract_coin_num = contract_num * self.multipler[self.coin] / float(coin_bid1)  
-            contract_fee = contract_coin_num * self.contract_fee_rate  
-            spot_amount = contract_coin_num / (1 - self.spot_fee_rate) + contract_fee  
-            self.logger.debug(f'Arbitrage starts >>> future cotract num {contract_num} > coin-margin num {contract_coin_num} > fee {contract_fee} > spot amount {spot_amount}')
+                self.logger.debug('!!! >>> Starting arbitrage...')
 
-            price = float(spot_ask1) * (1 + self.slippage)
-            params = {
-                'symbol': self.spot_symbol['type2'],
-                'direction': 'long',
-                'price': price,  
-                'amount': spot_amount,
-            }
-            spot_order_info = self.retry_wrapper(func=self.binance_spot_place_order, params=params, act_name='Long spot orders')
+                contract_num = self.amount / self.multipler[self.coin] 
+                contract_coin_num = contract_num * self.multipler[self.coin] / float(coin_bid1)  
+                contract_fee = contract_coin_num * self.contract_fee_rate  
+                spot_amount = contract_coin_num / (1 - self.spot_fee_rate) + contract_fee 
 
+                self.logger.info(f'Arbitrage starts >>> future cotract num {contract_num} > coin-margin num {contract_coin_num} > fee {contract_fee} > spot amount {spot_amount}')
 
-            balance = self.exchange.fetch_balance()
-            num = balance[self.coin]['free']
-            self.logger.debug(f'Amount to be transfered > {num}')
+                price = float(spot_ask1) * (1 + self.slippage)
+                params = {
+                    'symbol': self.spot_symbol['type2'],
+                    'direction': 'long',
+                    'price': price,  
+                    'amount': spot_amount,
+                }
 
-            params = {
-                'currency': self.coin,
-                'amount': num,
-                'from_account': 'spot', 
-                'to_account': 'coin-margin',
-            }
-            self.retry_wrapper(func=self.binance_account_transfer, params=params, act_name='Transfer (SPOT --> COIN-M)')
+                self.retry_wrapper(func=self.binance_spot_place_order, params=params, act_name='Long spot orders')
 
-            price = float(coin_bid1) * (1 - self.slippage)
-            price = round(price, self.coin_precision)
-            params = {
-                'symbol': self.future_symbol['type1'],
-                'direction': 'open_short',
-                'price': price, 
-                'amount': contract_num,
-            }
-            future_order_info = self.retry_wrapper(func=self.binance_future_place_order, params=params, act_name='Short coin-margin orders')
-            self.state = {
-                'quantity': contract_num,
-                'open_spread': r
-            }
+                balance = self.exchange.fetch_balance()
+                num = balance[self.coin]['free']
+                self.logger.debug(f'Amount to be transfered > {num}')
 
-            execute_num += 1
+                params = {
+                    'currency': self.coin,
+                    'amount': num,
+                    'from_account': 'spot', 
+                    'to_account': 'coin-margin',
+                }
+                self.retry_wrapper(func=self.binance_account_transfer, params=params, act_name='Transfer (SPOT --> COIN-M)')
 
-            self.logger.info(f"Number of opening executions: {execute_num}")
+                price = float(coin_bid1) * (1 - self.slippage)
+                price = round(price, self.coin_precision)
+                params = {
+                    'symbol': self.future_symbol['type1'],
+                    'direction': 'open_short',
+                    'price': price, 
+                    'amount': contract_num,
+                }
+                self.retry_wrapper(func=self.binance_future_place_order, params=params, act_name='Short coin-margin orders')
+                self.state = {
+                    'quantity': contract_num,
+                    'open_spread': r
+                }
 
-            print(spot_order_info['average'])
-            print(future_order_info)
-            break
+                execute_num += 1
+
+                self.logger.info(f"Number of opening executions: {execute_num}")
+
+                if execute_num >= self.num_maximum:
+                    self.logger.info('Maximum execution number reached >>> Position opening stops.')
+                    break
+            if delt > k:
+                last_spread = 0
+            
+            time.sleep(5) # not dosing binance
 
     def close_position_utils(self):
         """close positions for basis trading"""
@@ -207,11 +215,14 @@ class BinanceArbBot:
         now_execute_num = 0
         success_spread_difference_num = 0
         while True:
-            spot_ask1 = float(self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice'])
-            coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
+            spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice']
+            spot_ask1 = float(spot_ask1)
+            coin_bid1 = self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice']
+            coin_bid1 = float(coin_bid1)
 
             r = coin_bid1 / spot_ask1 - 1
-            print('Spread original: %.4f%%; \n Spread now: %.4f%%; \n Spread to reach: \n Currently trading: %s' % (100 * self.state.get('open_spread'), r * 100, self.state.get('open_spread') * 100 - self.threshold * 100, self.coin))
+            self.logger.info('Spread original: %.4f%%; \n Spread now: %.4f%%; \n Spread to reach: %.4f%%; \n Currently trading: %s' % (100 * self.state.get('open_spread'), r * 100, self.state.get('open_spread') * 100 - self.threshold * 100, self.coin))
+
             if self.state.get('open_spread') - r < self.threshold and not self.debug_enabled: 
                 success_spread_difference_num = 0
                 pass
@@ -224,10 +235,7 @@ class BinanceArbBot:
 
                 # contract_num = int(coin_bid1 * self.amount / self.multipler[self.coin]) # Количество контрактов, которые продаются
                 contract_num = self.state.get('quantity')
-                contract_coin_num = contract_num * self.multipler[self.coin] / coin_bid1 
-                contract_fee = contract_coin_num * self.contract_fee_rate 
-                spot_amount = contract_coin_num - contract_fee
-                self.logger.debug(f'Closing contract num {contract_num} > equivalent coin num {contract_coin_num} > contract fee {contract_fee} > spot selling amount {spot_amount}')
+                #self.logger.debug(f'Closing contract num {contract_num} > equivalent coin num {contract_coin_num} > contract fee {contract_fee} > spot selling amount {spot_amount}')
 
                 price = coin_bid1 * (1 + self.slippage)
                 price = round(price, self.coin_precision)
@@ -249,6 +257,7 @@ class BinanceArbBot:
                     'to_account': 'spot',
                 }
                 self.retry_wrapper(func=self.binance_account_transfer, params=params, act_name='Transfer (COIN-M --> SPOT)') # TODO: transfer all coins
+
                 
                 balance = self.exchange.fetch_balance()
                 num = balance[self.coin]['free']
@@ -268,22 +277,10 @@ class BinanceArbBot:
 
                 now_execute_num = now_execute_num + 1
 
-                print(spot_order_info['average'])
-                print(future_order_info)
-
                 self.logger.info(f"Number of closing executions: {now_execute_num}")
 
+                # write to csv 2 columns timestamp and balance
                 with open("balance.csv", "a") as f:
                     f.write(f"{(self.exchange.fetch_balance())['USDC']['free']},{str(time.time())}\n")
-                break
-                
 
-    def close_position(self):
-            while True:
-                try:
-                    self.close_position_utils()
-                    break
-                except Exception as e:
-                    self.logger.critical(f'Closing positions FAILED >>> Retrying...')
-                    self.logger.warning(traceback.format_exc())
-                    time.sleep(2)
+           

@@ -6,7 +6,7 @@ from BinanceArb import BinanceArbBot
 from detect_spread import *
 
 multiplier = {
-    'BTC': 100,  # 1 contract = 100USD
+    'BTC': 5,  # 1 contract = 100USD
     'EOS': 10,  # 1 contract = 10USD
     'DOT': 10,
     'ETH': 10,
@@ -19,12 +19,13 @@ multiplier = {
     'LINK': 10
 }  
 
+
 def init_argparse():
     parser = argparse.ArgumentParser()
     parser.add_argument('--exchange', default='', help='exchange')
     parser.add_argument('--coin', type=str, default='ada'.upper())
     parser.add_argument('--future_date', type=str, default='221230', help='expiration date')
-    parser.add_argument('--coin_precision', type=int, default=2, help="price precision")
+    parser.add_argument('--coin_precision', type=int, default=4, help="price precision") # DEFAULT% BITCOIN
     parser.add_argument('--slippage', type=float, default=0.02, help="proportion of coin price")
     parser.add_argument('--multiplier', type=dict, default=multiplier, help='expiration date')
 
@@ -49,7 +50,7 @@ if __name__ == '__main__':
     position_parser = init_argparse()
     position_parser.add_argument('--amount', type=int, default=20, help="spot trading amount for one iteration")
     position_parser.add_argument('--num_maximum', type=int, default=3, help="maximum execution numbers")
-    position_parser.add_argument('-f', '--threshold', type=float, default=0.001, help="opening threshold")
+    position_parser.add_argument('-f', '--threshold', type=float, default=0.003, help="opening threshold")
     position_parser.add_argument('--required_iterations', type=int, default=2, help="number of success required iterations")
     args = position_parser.parse_args()
 
@@ -58,14 +59,11 @@ if __name__ == '__main__':
     exchange = BA(trading_bot.secret_key, trading_bot.api_key)
     LOGGER = get_logger("Spread Detection")
     
-
+    spread, tm = 0, 0
     while True:
-        trading_bot.coin = get_trading_coin(exchange, LOGGER)
+        # trading_bot.coin = get_trading_coin(exchange, LOGGER)
+        trading_bot.coin = 'XRP'
         trading_bot.update_symbols()
-        trading_bot.open_position()
-        trading_bot.close_position()
-
-        if args.debug_enabled == True: # only 1 circle in debug mode
-            exit
-
-
+        trading_bot.open_position(spread, tm)
+        spread, tm = trading_bot.close_position()
+        if args.debug_enabled == True: # only
