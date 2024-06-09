@@ -66,4 +66,7 @@ if __name__ == '__main__':
         trading_bot.update_symbols()
         trading_bot.open_position(spread, tm)
         spread, tm = trading_bot.close_position()
-        if args.debug_enabled == True: # only
+        if args.debug_enabled == True: # only 1 circle in debug mode
+            exit
+
+

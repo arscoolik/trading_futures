@@ -283,4 +283,18 @@ class BinanceArbBot:
                 with open("balance.csv", "a") as f:
                     f.write(f"{(self.exchange.fetch_balance())['USDC']['free']},{str(time.time())}\n")
 
-           
+                if now_execute_num >= self.num_maximum:
+                    self.logger.info('Maximum execution number reached >>> Position closing stops.')
+                break
+        return self.state.get('open_spread'), time.time()
+                
+
+    def close_position(self):
+            while True:
+                try:
+                    sp, tim = self.close_position_utils()
+                    return sp, tim
+                except Exception as e:
+                    self.logger.critical(f'Closing positions FAILED >>> Retrying...')
+                    self.logger.warning(traceback.format_exc())
+                    time.sleep(2)
