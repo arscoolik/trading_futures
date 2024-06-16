@@ -175,12 +175,28 @@ class BinanceArbBot:
                     'amount': spot_amount,
                 }
                 spot_order_info = self.retry_wrapper(func=self.binance_spot_place_order, params=params, act_name='Long spot orders')
-
+                start_time = time.time()
                 # Проверка успешности размещения ордера на споте
                 while (self.exchange.fetch_balance()[self.coin]['free'] < spot_amount):
                     self.logger.warning(f'Insufficient XRP balance on spot account, required: ({math.floor(spot_amount)})')
                     time.sleep(3)
+                    if (time.time() - start_time) / 60 > 5:
+                        self.logger.error('Failed to place spot order in 5 mins, cancelling...')
+                        cancel_order_params = {
+                            'orderId': spot_order_info['info']['orderId'],
+                            'symbol': spot_order_info['info']['symbol'],
+                        }
 
+                        self.retry_wrapper(func=self.cancel_order, params=cancel_order_params, act_name="cancel long spot order")
+                        spot_bid = float(self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice'])
+                        spot_order_params = {
+                            'symbol': self.spot_symbol['type2'],
+                            'direction': 'long',
+                            'price': float(spot_bid) * (1 - self.slippage),
+                            'amount': spot_amount,
+                        }
+                        start_time = time.time()
+                        spot_order_info = self.retry_wrapper(func=self.binance_spot_place_order, params=spot_order_params, act_name='Long spot orders')
             
                 # Если ордер на споте успешно размещен, переводим средства на coin-margin
 
@@ -308,16 +324,9 @@ class BinanceArbBot:
                 while self.exchange.fetch_balance()[self.coin]['free'] > 1:
                     self.logger.warning(f'Too many XRP on spot account, required: 0.5')
                     time.sleep(3)
-                    if (time.time() - start_time) / 60 > 5: # less than 5 mins
-
-                        params = {
-                            'symbol': self.spot_symbol['type2'],
-                            'direction': 'short',
-                            'price': price,
-                            'amount': num,
-                        }
-                        spot_order_info = self.retry_wrapper(func=self.binance_spot_place_order, params=params, act_name='Short spot orders')
-
+                    if (time.time() - start_time) / 60 > 5: # more than 5 mins
+                        self.logger.error('Failed short spot order closing position')
+                        exit()
 
                 # now_execute_num = now_execute_num + 1
 
@@ -342,3 +351,6 @@ class BinanceArbBot:
                     self.logger.critical(f'Closing positions FAILED >>> Retrying...')
                     self.logger.warning(traceback.format_exc())
                     time.sleep(2)
+
+    def cancel_order(self, orderId: str, symbol: str):
+        return self.exchange.cancel_order(orderId, symbol)
