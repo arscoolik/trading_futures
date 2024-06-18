@@ -97,7 +97,7 @@ class BinanceArbBot:
         self.logger.debug(f"getting {self.coin} futures balance")
         return float(futures_balance_info[self.coin]['free'])
 
-    def binance_future_place_order(self, symbol: str, direction: str, price: float, amount: int, reduce: bool):
+    def binance_future_place_order(self, symbol: str, direction: str, price: float, amount: int, reduce: bool, type: str):
 
         if direction == 'open_short':
             side = 'SELL'
@@ -106,13 +106,25 @@ class BinanceArbBot:
         else:
             raise NotImplemented('Parameter `direction` only supports `open_short` and `close_short` currently')
 
-        params = {
-            'symbol': symbol,
-            'side': side,
-            'type': 'MARKET',
-            'quantity': amount,
-            'timestamp': int(time.time() * 1000),
-        }
+        if type == 'MARKET':
+            params = {
+                        'symbol': symbol,
+                        'side': side,
+                        'type': type,
+                        'quantity': amount,
+                        'timestamp': int(time.time() * 1000),
+                    }
+        elif type == 'LIMIT':
+            params = {
+                'symbol': symbol,
+                'side': side,
+                'type': type,
+                'price': price * (1 + self.slippage),
+                'timeInForce': 'GTC',
+                # 'reduce': reduce,
+                'quantity': amount,
+                'timestamp': int(time.time() * 1000),
+            }
 
         params['timestamp'] = int(time.time() * 1000)
         order_info = self.exchange.dapiPrivatePostOrder(params)
@@ -167,7 +179,7 @@ class BinanceArbBot:
 
                 # Размещение ордера на споте
                 price = float(spot_ask1) * (1 - self.slippage)
-                spot_amount = self.amount / price
+                spot_amount = math.floor(self.amount / price)
                 params = {
                     'symbol': self.spot_symbol['type2'],
                     'direction': 'long',
@@ -178,7 +190,7 @@ class BinanceArbBot:
                 start_time = time.time()
                 # Проверка успешности размещения ордера на споте
                 while (self.exchange.fetch_balance()[self.coin]['free'] < spot_amount):
-                    self.logger.warning(f'Insufficient XRP balance on spot account, required: ({math.floor(spot_amount)})')
+                    self.logger.warning(f'Insufficient XRP balance on spot account, required: ({spot_amount})')
                     time.sleep(3)
                     if (time.time() - start_time) / 60 > 5:
                         self.logger.error('Failed to place spot order in 5 mins, cancelling...')
@@ -188,11 +200,11 @@ class BinanceArbBot:
                         }
 
                         self.retry_wrapper(func=self.cancel_order, params=cancel_order_params, act_name="cancel long spot order")
-                        spot_bid = float(self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice'])
+                        spot_ask1 = float(self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice'])
                         spot_order_params = {
                             'symbol': self.spot_symbol['type2'],
                             'direction': 'long',
-                            'price': float(spot_bid) * (1 - self.slippage),
+                            'price': float(spot_ask1) * (1 - self.slippage),
                             'amount': spot_amount,
                         }
                         start_time = time.time()
@@ -222,6 +234,7 @@ class BinanceArbBot:
                 coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
                 r = coin_bid1 / spot_ask1 - 1
                 price = round(price, self.coin_precision)
+                print(f"OPENING FUTURES SHORT: coin_bid1 = {coin_bid1}, self.multipler[self.coin] = {self.multipler[self.coin]}")
                 futures_contract_num = math.floor(spot_amount * coin_bid1 / self.multipler[self.coin])
                 params = {
                     'symbol': self.future_symbol['type1'],
@@ -229,6 +242,7 @@ class BinanceArbBot:
                     'price': price,
                     'amount': futures_contract_num,
                     'reduce' : False,
+                    'type': 'MARKET'
                 }
                 print(f"future place order parameters: {params}")
                 future_order_info = self.retry_wrapper(func=self.binance_future_place_order, params=params, act_name='Short coin-margin orders')
@@ -289,6 +303,7 @@ class BinanceArbBot:
                     'price': price,
                     'amount': futures_contract_num,
                     'reduce' : True,
+                    'type': 'MARKET'
                 }
 
                 print(f"future place order: {params}")
