@@ -36,6 +36,7 @@ def init_argparse():
     parser.add_argument('--max_trial', type=int, default=5, help="number of trials for connection")
     parser.add_argument('--api_key', type=str, default='', help="api-key")
     parser.add_argument('--secret_key', type=str, default='', help="secret-key")
+    parser.add_argument('--futures_leverage', type=int, default=5, help="futures_leverage")
     parser.add_argument('--debug_enabled', type=bool, default=False, help="debug mode is enabled")
     return parser
 

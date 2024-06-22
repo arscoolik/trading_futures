@@ -7,7 +7,7 @@ from Logger import get_logger
 class BinanceArbBot:
     def __init__(self, exchange: ccxt.binance, coin: str, future_date: str, coin_precision: float,
                  slippage: float, spot_fee_rate: float, contract_fee_rate: float, multiplier: dict,
-                 amount: float, num_maximum: int, threshold: float,required_iterations: int, max_trial: int, api_key: str, secret_key: str, debug_enabled: bool):
+                 amount: float, num_maximum: int, threshold: float,required_iterations: int, max_trial: int, futures_leverage: int, api_key: str, secret_key: str, debug_enabled: bool):
         self.debug_enabled = debug_enabled
         self.exchange = ccxt.binance({
                                     'apiKey': api_key,
@@ -41,6 +41,7 @@ class BinanceArbBot:
         self.threshold = threshold
         self.required_iterations = required_iterations
         self.max_trial = max_trial
+        self.futures_leverage = futures_leverage
         self.logger = get_logger("Basis-Trading Starts")
         self.spot_symbol = {'type1': coin + 'FDUSD', 'type2': coin + '/FDUSD'}
         self.future_symbol = {'type1': coin + 'USD_' + future_date}
@@ -235,7 +236,7 @@ class BinanceArbBot:
                 r = coin_bid1 / spot_ask1 - 1
                 price = round(price, self.coin_precision)
                 print(f"OPENING FUTURES SHORT: coin_bid1 = {coin_bid1}, self.multipler[self.coin] = {self.multipler[self.coin]}")
-                futures_contract_num = math.floor(spot_amount * coin_bid1 / self.multipler[self.coin])
+                futures_contract_num = math.floor(spot_amount * coin_bid1 * self.futures_leverage / self.multipler[self.coin])
                 params = {
                     'symbol': self.future_symbol['type1'],
                     'direction': 'open_short',
@@ -251,7 +252,8 @@ class BinanceArbBot:
                     self.state = {
                         'quantity': futures_contract_num,
                         'open_spread': r,
-                        'orderId': future_order_info['orderId']
+                        'orderId': future_order_info['orderId'],
+                        'futures_start_price': coin_bid1
                     }
                     execute_num += 1
                     self.logger.info(f"Number of opening executions: {execute_num}")
@@ -274,6 +276,9 @@ class BinanceArbBot:
 
         now_execute_num = 0
         success_spread_difference_num = 0
+
+        futures_start_price = self.state.get('futures_start_price')
+
         while True:
             spot_ask1 = self.exchange.publicGetTickerBookTicker(params={'symbol': self.spot_symbol['type1']})['bidPrice']
             spot_ask1 = float(spot_ask1)
@@ -282,15 +287,20 @@ class BinanceArbBot:
 
             r = coin_bid1 / spot_ask1 - 1
             self.logger.info('Spread original: %.4f%%; \n Spread now: %.4f%%; \n Spread to reach: %.4f%%; \n Currently trading: %s' % (100 * self.state.get('open_spread'), r * 100, self.state.get('open_spread') * 100 - self.threshold * 100, self.coin))
-
+            futures_current_price = float(self.exchange.dapiPublicGetTickerBookTicker(params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
+            futures_relative_difference = (futures_start_price - futures_current_price) / futures_start_price
+            self.logger.info(f'Futures relative difference: {futures_relative_difference * 100}%')
+                
             if not self.debug_enabled and self.state.get('open_spread') - r < self.threshold:
                 success_spread_difference_num = 0
-                pass
             else:
                 success_spread_difference_num += 1
-                if (success_spread_difference_num < self.required_iterations):
-                    continue
 
+                if not self.debug_enabled:
+                    if (success_spread_difference_num < self.required_iterations and futures_relative_difference < 0.01):
+                        continue
+                
+                
                 self.logger.debug('Spread difference GREATER than threshold >>> Stopping arbitrage...')
 
                 futures_contract_num = self.state.get('quantity')
