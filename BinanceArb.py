@@ -236,7 +236,7 @@ class BinanceArbBot:
                 r = coin_bid1 / spot_ask1 - 1
                 price = round(price, self.coin_precision)
                 print(f"OPENING FUTURES SHORT: coin_bid1 = {coin_bid1}, self.multipler[self.coin] = {self.multipler[self.coin]}")
-                futures_contract_num = math.floor(spot_amount * coin_bid1 * self.futures_leverage / self.multipler[self.coin])
+                futures_contract_num = math.floor(spot_amount * coin_bid1 * self.futures_leverage / self.multipler[self.coin]) - 1
                 params = {
                     'symbol': self.future_symbol['type1'],
                     'direction': 'open_short',
@@ -359,7 +359,7 @@ class BinanceArbBot:
 
                 # write to csv 2 columns timestamp and balance
                 with open("balance.csv", "a") as f:
-                    f.write(f"{(self.exchange.fetch_balance())['USDC']['free']},{str(time.time())}\n")
+                    f.write(f"{(self.exchange.fetch_balance())['FDUSD']['free']},{str(time.time())}\n")
 
                 if now_execute_num >= self.num_maximum:
                     self.logger.info('Maximum execution number reached >>> Position closing stops.')
