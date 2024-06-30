@@ -285,7 +285,7 @@ class BinanceArbBot:
             
 
             if not self.debug_enabled:
-                if calculated_profit  > self.negative_threshold and calculated_profit > self.threshold:
+                if calculated_profit  < self.negative_threshold or calculated_profit > self.threshold:
                     success_spread_difference_num += 1
                 else:
                     success_spread_difference_num = 0
@@ -359,6 +359,7 @@ class BinanceArbBot:
             if now_execute_num >= self.num_maximum:
                 self.logger.info('Maximum execution number reached >>> Position closing stops.')
             break
+        time.sleep(300)
         return self.state.get('open_spread'), time.time(), k_parameter
 
 
