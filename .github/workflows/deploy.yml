@@ -1,86 +1,74 @@
+---
 name: CI/CD Pipeline
-
 on:
   push:
     branches:
       - master
-
 jobs:
   linter:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8
-
-    - name: Run linter and capture output
-      id: lint
-      run: |
-        flake8 . > lint_output.txt || true
-
-    - name: Count lines in linter output
-      id: count_lines
-      run: |
-        lines=$(cat lint_output.txt | wc -l)
-        echo "::set-output name=lines::$lines"
-
-    - name: Check linter result
-      run: |
-        lines=${{ steps.count_lines.outputs.lines }}
-        if [ $lines -gt 40 ]; then
-          echo "Linter found $lines issues, failing the job."
-          exit 1
-        else
-          echo "Linter found $lines issues, continuing."
-        fi
-        
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+      - name: Run linter and capture output
+        id: lint
+        run: |
+          flake8 . > lint_output.txt || true
+      - name: Count lines in linter output
+        id: count_lines
+        run: |
+          lines=$(cat lint_output.txt | wc -l)
+          echo "::set-output name=lines::$lines"
+      - name: Check linter result
+        run: |
+          lines=${{ steps.count_lines.outputs.lines }}
+          if [ $lines -gt 40 ]; then
+            echo "Linter found $lines issues, failing the job."
+            exit 1
+          else
+            echo "Linter found $lines issues, continuing."
+          fi
   sast:
-    needs: linter  # Wait for the linter job to complete successfully
+    needs: linter
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
-    - name: Install SAST tool (example: Bandit)
-      run: |
-        pip install bandit
-
-    - name: Run SAST tool
-      run: |
-        bandit -r . -ll -o bandit_report.json || true  # -ll to show low and high severity issues
-
-    - name: Upload SAST results
-      uses: actions/upload-artifact@v2
-      with:
-        name: bandit-report
-        path: bandit_report.json
-
-    - name: Fail job if critical issues found
-      run: |
-        if grep -q '"issue_severity": "CRITICAL"' bandit_report.json; then
-          echo "Critical security issues found, failing the job."
-          exit 1
-        else
-          echo "No critical security issues found."
-        fi
-        
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Install SAST tool
+        run: |
+          pip install bandit
+      - name: Run SAST tool
+        run: >
+          bandit -r . -ll -o bandit_report.json || true  # -ll to show low and high
+          severity issues
+      - name: Upload SAST results
+        uses: actions/upload-artifact@v2
+        with:
+          name: bandit-report
+          path: bandit_report.json
+      - name: Fail job if critical issues found
+        run: |
+          if grep -q '"issue_severity": "CRITICAL"' bandit_report.json; then
+            echo "Critical security issues found, failing the job."
+            exit 1
+          else
+            echo "No critical security issues found."
+          fi
   ssh-deploy:
-    needs: linter  
+    needs: linter
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-
-    - name: Set up SSH
-      uses: webfactory/ssh-agent@v0.5.3
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-    - name: Copy files via SSH
-      run: |
-        ssh-keyscan -H 193.164.150.195 >> ~/.ssh/known_hosts
-        scp -r ./** root@193.164.150.195:~/arbitrage/
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Copy files via SSH
+        run: |
+          ssh-keyscan -H 193.164.150.195 >> ~/.ssh/known_hosts
+          scp -r ./** root@193.164.150.195:~/arbitrage/
