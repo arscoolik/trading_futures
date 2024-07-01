@@ -37,7 +37,37 @@ jobs:
         else
           echo "Linter found $lines issues, continuing."
         fi
+        
+sast:
+    needs: linter  # Wait for the linter job to complete successfully
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
 
+    - name: Install SAST tool (example: Bandit)
+      run: |
+        pip install bandit
+
+    - name: Run SAST tool
+      run: |
+        bandit -r . -ll -o bandit_report.json || true  # -ll to show low and high severity issues
+
+    - name: Upload SAST results
+      uses: actions/upload-artifact@v2
+      with:
+        name: bandit-report
+        path: bandit_report.json
+
+    - name: Fail job if critical issues found
+      run: |
+        if grep -q '"issue_severity": "CRITICAL"' bandit_report.json; then
+          echo "Critical security issues found, failing the job."
+          exit 1
+        else
+          echo "No critical security issues found."
+        fi
+        
   ssh-deploy:
     needs: linter  
     runs-on: ubuntu-latest
