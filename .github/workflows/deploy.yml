@@ -13,11 +13,27 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Run linter
+    - name: Run linter and capture output
+      id: lint
       run: |
         pip install flake8
-        flake8 .
-      continue-on-error: true
+        flake8 . > lint_output.txt || true
+
+    - name: Count lines in linter output
+      id: count_lines
+      run: |
+        lines=$(cat lint_output.txt | wc -l)
+        echo "::set-output name=lines::$lines"
+
+    - name: Check linter result
+      run: |
+        lines=${{ steps.count_lines.outputs.lines }}
+        if [ $lines -gt 20 ]; then
+          echo "Linter found $lines issues, failing the job."
+          exit 1
+        else
+          echo "Linter found $lines issues, continuing."
+        fi
 
     - name: Set up SSH
       uses: webfactory/ssh-agent@v0.5.3
