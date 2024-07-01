@@ -38,7 +38,7 @@ jobs:
           echo "Linter found $lines issues, continuing."
         fi
         
-sast:
+  sast:
     needs: linter  # Wait for the linter job to complete successfully
     runs-on: ubuntu-latest
     steps:
