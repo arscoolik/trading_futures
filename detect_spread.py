@@ -1,11 +1,11 @@
 import ccxt
 import pandas as pd
 import time
+from Logger import get_logger
 
-pd.set_option('expand_frame_repr', True)  
+pd.set_option('expand_frame_repr', True)
 pd.set_option("display.max_rows", 500)
 
-from Logger import get_logger
 
 class BA(ccxt.binance):
 
@@ -27,15 +27,16 @@ class BA(ccxt.binance):
         markets = self.load_markets()
         for symbol in self.dapiPublicGetExchangeInfo()['symbols']:
             future_symbol = symbol['symbol']
-            # delivery date
             if '24' in future_symbol:
                 spot_symbol = future_symbol[0:-10] + '/USDT'
-                symbols[future_symbol[0:-10]] = (future_symbol,
-                                                 int(symbol['pricePrecision']),  
-                                                 int(symbol['contractSize']),  
-                                                 spot_symbol,
-                                                 markets[spot_symbol]['precision']['price'],  
-                                                 markets[spot_symbol]['precision']['amount']) 
+                symbols[future_symbol[0:-10]] = (
+                    future_symbol,
+                    int(symbol['pricePrecision']),
+                    int(symbol['contractSize']),
+                    spot_symbol,
+                    markets[spot_symbol]['precision']['price'],
+                    markets[spot_symbol]['precision']['amount']
+                )
 
         return symbols
 
@@ -45,19 +46,29 @@ class BA(ccxt.binance):
             symbol_future = symbol_info[0]
             symbol_spot = symbol_info[3]
             symbol_spot_temp = symbol_spot.replace('/', '')
-            spot_buy1_price = float(self.publicGetTickerBookTicker(params={'symbol': symbol_spot_temp})['bidPrice'])
-            spot_sell1_price = float(self.publicGetTickerBookTicker(params={'symbol': symbol_spot_temp})['askPrice'])
+            spot_buy1_price = float(
+                self.publicGetTickerBookTicker(
+                    params={'symbol': symbol_spot_temp}
+                )['bidPrice'])
+            spot_sell1_price = float(
+                self.publicGetTickerBookTicker(
+                    params={'symbol': symbol_spot_temp}
+                )['askPrice'])
             future_buy1_price = float(
-                self.dapiPublicGetTickerBookTicker(params={'symbol': symbol_future})[0]['bidPrice'])
+                self.dapiPublicGetTickerBookTicker(
+                    params={'symbol': symbol_future}
+                )[0]['bidPrice'])
             future_sell1_price = float(
-                self.dapiPublicGetTickerBookTicker(params={'symbol': symbol_future})[0]['askPrice'])
+                self.dapiPublicGetTickerBookTicker(
+                    params={'symbol': symbol_future}
+                )[0]['askPrice'])
             open_spread = future_buy1_price / spot_sell1_price - 1
             close_spread = future_sell1_price / spot_buy1_price - 1
             spot_future_spread.append((
                 symbol_future, symbol_spot,
-                open_spread,  
+                open_spread,
                 future_buy1_price, spot_sell1_price,
-                close_spread,  
+                close_spread,
                 future_sell1_price, spot_buy1_price))
 
         df = pd.DataFrame(spot_future_spread)
@@ -65,9 +76,11 @@ class BA(ccxt.binance):
                       'open_spread', 'future_buy1_price', 'spot_sell1_price',
                       'close_spread', 'future_sell1_price', 'spot_buy1_price']
 
-        open_info = df[df['open_spread'] == df['open_spread'].max()].values[0].tolist()[0:5]
+        open_info = df[df['open_spread'] ==
+                       df['open_spread'].max()].values[0].tolist()[0:5]
 
-        close_info = df[df['close_spread'] == df['close_spread'].min()].values[0].tolist()
+        close_info = df[df['close_spread'] ==
+                        df['close_spread'].min()].values[0].tolist()
         close_info = close_info[0:2] + close_info[5:]
 
         logger.info('Open positions info: Difference Coin-Bid1 Spot-Ask1')
@@ -75,7 +88,9 @@ class BA(ccxt.binance):
         logger.info('Close positions info: Difference Coin-Ask1 Spot-Bid1')
         logger.debug(str(close_info))
 
-        print(df.sort_values('open_spread', ascending=False).to_string(index=False))
+        print(df.sort_values(
+            'open_spread',
+            ascending=False).to_string(index=False))
 
         return open_info, close_info
 

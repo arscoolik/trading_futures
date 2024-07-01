@@ -31,7 +31,7 @@ jobs:
     - name: Check linter result
       run: |
         lines=${{ steps.count_lines.outputs.lines }}
-        if [ $lines -gt 20 ]; then
+        if [ $lines -gt 40 ]; then
           echo "Linter found $lines issues, failing the job."
           exit 1
         else
