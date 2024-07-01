@@ -6,19 +6,20 @@ on:
       - master
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
   linter:
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8
+
     - name: Run linter and capture output
       id: lint
       run: |
-        pip install flake8
         flake8 . > lint_output.txt || true
 
     - name: Count lines in linter output
@@ -36,9 +37,14 @@ jobs:
         else
           echo "Linter found $lines issues, continuing."
         fi
-  ssh:
+
+  ssh-deploy:
+    needs: linter  
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
     - name: Set up SSH
       uses: webfactory/ssh-agent@v0.5.3
       with:
