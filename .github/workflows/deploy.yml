@@ -13,6 +13,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
+    - name: Run linter
+      run: |
+        pip install flake8
+        flake8 .
+      continue-on-error: true
+
     - name: Set up SSH
       uses: webfactory/ssh-agent@v0.5.3
       with:
@@ -21,4 +27,4 @@ jobs:
     - name: Copy files via SSH
       run: |
         ssh-keyscan -H 193.164.150.195 >> ~/.ssh/known_hosts
-        scp -r ./** root@193.164.150.195:~/arbitrage/new/
+        scp -r ./** root@193.164.150.195:~/arbitrage/
