@@ -51,8 +51,8 @@ if __name__ == '__main__':
     position_parser = init_argparse()
     position_parser.add_argument('--amount', type=int, default=20, help="spot trading amount for one iteration")
     position_parser.add_argument('--num_maximum', type=int, default=3, help="maximum execution numbers")
-    position_parser.add_argument('-f', '--threshold', type=float, default=0.015, help="opening threshold")
-    position_parser.add_argument('--negative_threshold', type=float, default=-0.02, help="negative threshold")
+    position_parser.add_argument('-f', '--threshold', type=float, default=0.01, help="opening threshold")
+    position_parser.add_argument('--negative_threshold', type=float, default=-0.05, help="negative threshold")
     position_parser.add_argument('--required_iterations', type=int, default=5, help="number of success required iterations")
     args = position_parser.parse_args()
 
