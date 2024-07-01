@@ -12,7 +12,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-
+  linter:
+    runs-on: ubuntu-latest
+    steps:
     - name: Run linter and capture output
       id: lint
       run: |
@@ -34,7 +36,9 @@ jobs:
         else
           echo "Linter found $lines issues, continuing."
         fi
-
+  ssh:
+    runs-on: ubuntu-latest
+    steps:
     - name: Set up SSH
       uses: webfactory/ssh-agent@v0.5.3
       with:
