@@ -338,12 +338,11 @@ class BinanceArbBot:
 
             start_time = time.time()
             required_coin_balance = 1 / self.multiplier[self.coin] * futures_balance
-            while self.exchange.fetch_balance()[self.coin]['free'] > required_coin_balance:
+            while self.exchange.fetch_balance()['FDUSD']['free'] < price * num:
                 self.logger.warning(f'Too many {self.coin} on spot account, required: {required_coin_balance}')
                 time.sleep(3)
                 if (time.time() - start_time) / 60 > 5: # more than 5 mins
-                    self.logger.error('Failed short spot order closing position')
-                    exit()
+                    self.logger.error(f'Already {(time.time() - start_time) // 60} minutes has passed trying to close SPOT')
             
             profit = (price * num - self.amount) / self.amount
             self.logger.info(f"Circle finished:\nProfit: {profit * 100}% | {profit * self.amount}$\n")
