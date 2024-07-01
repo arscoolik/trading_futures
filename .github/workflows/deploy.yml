@@ -21,4 +21,4 @@ jobs:
     - name: Copy files via SSH
       run: |
         ssh-keyscan -H 193.164.150.195 >> ~/.ssh/known_hosts
-        scp -r ./ root@193.164.150.195:~/arbitrage/new/
+        scp -r . root@193.164.150.195:~/arbitrage/new/
