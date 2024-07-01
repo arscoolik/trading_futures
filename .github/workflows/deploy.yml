@@ -59,7 +59,9 @@ jobs:
             echo "No critical security issues found."
           fi
   ssh-deploy:
-    needs: linter
+    needs: 
+      - linter
+      - sast
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
