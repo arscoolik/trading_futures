@@ -204,7 +204,8 @@ class BinanceArbBot:
 
         return transfer_info
 
-    def open_position(self, last_spread, tim, k=6):
+    def open_position(self, last_spread, tim, amount, k=6):
+        self.amount = amount
         execute_num = 0
 
         while True:
@@ -445,8 +446,19 @@ class BinanceArbBot:
                         f'Already {(time.time() - start_time) // 60} minutes has passed trying to close SPOT')
 
             profit = (price * num - self.amount) / self.amount
-            self.logger.info(
-                f"Circle finished:\nProfit: {profit * 100}% | {profit * self.amount}$\n")
+            profit_usd = profit * self.amount
+            # self.logger.info(
+            #     f"Circle finished:\nProfit: {profit * 100}% | {profit_usd}$\n")
+
+            
+            if profit_usd > 0:
+                self.logger.info(f"=) Trading circle ended in plus: Profit: {profit * 100}% | {profit_usd}$")
+                next_circle_amount = self.amount + profit_usd / 2
+                self.logger.info(f"Next circle money amount: {next_circle_amount}$")
+
+            if profit_usd < 0:
+                self.logger.info(f"=( Trading circle ended in minus: Loss: {profit * 100}% | {profit_usd}$")
+                next_circle_amount = self.amount
 
             # now_execute_num = now_execute_num + 1
             k_parameter = self.calculate_k_hour_parameter(
@@ -463,7 +475,7 @@ class BinanceArbBot:
                     'Maximum execution number reached >>> Position closing stops.')
             break
         time.sleep(300)
-        return self.state.get('open_spread'), time.time(), k_parameter
+        return self.state.get('open_spread'), time.time(), k_parameter, next_circle_amount
 
     def close_position(self):
         while True:

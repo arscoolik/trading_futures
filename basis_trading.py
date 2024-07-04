@@ -122,8 +122,8 @@ if __name__ == '__main__':
     while True:
         # trading_bot.coin = get_trading_coin(exchange, LOGGER)
         trading_bot.update_symbols()
-        trading_bot.open_position(spread, tm, k_parameter)
-        spread, tm, k_parameter = trading_bot.close_position()
+        trading_bot.open_position(spread, tm, amount, k_parameter)
+        spread, tm, k_parameter, amount = trading_bot.close_position()
         print(f"args.debug_enabled={args.debug_enabled}")
         if args.debug_enabled:  # only 1 circle in debug mode
             exit()
