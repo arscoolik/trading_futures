@@ -42,6 +42,7 @@ class BinanceArbBot:
         self.spot_fee_rate = spot_fee_rate
         self.contract_fee_rate = contract_fee_rate
         self.multiplier = multiplier
+        self.initial_amount = amount
         self.amount = amount
         self.num_maximum = num_maximum
         self.threshold = threshold
@@ -204,8 +205,7 @@ class BinanceArbBot:
 
         return transfer_info
 
-    def open_position(self, last_spread, tim, amount, k=6):
-        self.amount = amount
+    def open_position(self):
         execute_num = 0
 
         while True:
@@ -215,9 +215,7 @@ class BinanceArbBot:
                 params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
             r = coin_bid1 / spot_ask1 - 1
 
-            delta_hours = (time.time() - tim) / 3600
-            if r > last_spread / 2 * \
-                    (1 + self.threshold * 10 * (k - delta_hours) / 6):
+            if True:
                 self.logger.info(
                     'Spot %.4f < COIN-M %.4f -> Price Difference: %.4f%%' %
                     (float(spot_ask1), float(coin_bid1), r * 100))
@@ -331,10 +329,6 @@ class BinanceArbBot:
                     self.logger.info(
                         'Maximum execution number reached >>> Position opening stops.')
                     break
-
-            if delta_hours > k:
-                last_spread = 0
-
             time.sleep(5)  # Не перегружаем биржу
 
     def close_position_utils(self):
@@ -449,7 +443,9 @@ class BinanceArbBot:
             profit_usd = profit * self.amount
             # self.logger.info(
             #     f"Circle finished:\nProfit: {profit * 100}% | {profit_usd}$\n")
-
+            with open("balance.csv", "a") as f:
+                f.write(
+                    f"{(self.exchange.fetch_balance())['FDUSD']['free']},{str(time.time())}\n")
             
             if profit_usd > 0:
                 self.logger.info(f"=) Trading circle ended in plus: Profit: {profit * 100}% | {profit_usd}$")
@@ -458,30 +454,27 @@ class BinanceArbBot:
 
             if profit_usd < 0:
                 self.logger.info(f"=( Trading circle ended in minus: Loss: {profit * 100}% | {profit_usd}$")
-                next_circle_amount = self.amount
+                next_circle_amount = max(self.initial_amount, self.amount + profit_usd)
+                self.logger.warning('Closed badly, so now im sleeping for 4 hours')
+                time.sleep(14400)
 
             # now_execute_num = now_execute_num + 1
-            k_parameter = self.calculate_k_hour_parameter(
-                profit) if profit < 0 else 6
 
             # self.logger.info(f"Number of closing executions: {now_execute_num}")
 
-            with open("balance.csv", "a") as f:
-                f.write(
-                    f"{(self.exchange.fetch_balance())['FDUSD']['free']},{str(time.time())}\n")
+            
 
             if now_execute_num >= self.num_maximum:
                 self.logger.info(
                     'Maximum execution number reached >>> Position closing stops.')
             break
-        time.sleep(300)
-        return self.state.get('open_spread'), time.time(), k_parameter, next_circle_amount
+
+
 
     def close_position(self):
         while True:
             try:
-                sp, tim, k_parameter = self.close_position_utils()
-                return sp, tim, k_parameter
+                self.close_position_utils()
             except Exception as e:
                 self.logger.critical(
                     f'Closing positions FAILED with Exception: {e}>>> Retrying...')
