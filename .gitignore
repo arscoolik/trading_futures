@@ -2,3 +2,6 @@ Config.py
 logs.txt
 balance.csv
 test.py
+venv/
+.idea
+__pycache__
