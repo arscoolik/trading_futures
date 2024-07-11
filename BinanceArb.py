@@ -3,6 +3,8 @@ import time
 import math
 import traceback
 from Logger import get_logger
+import numpy as np
+from collections import deque
 
 
 class BinanceArbBot:
@@ -50,11 +52,42 @@ class BinanceArbBot:
         self.required_iterations = required_iterations
         self.max_trial = max_trial
         self.futures_leverage = futures_leverage
+        self.period = 14
+        self.last_deals = deque(maxlen=self.period)
         self.logger = get_logger("Basis-Trading Starts")
         self.spot_symbol = {'type1': coin + 'FDUSD', 'type2': coin + '/FDUSD'}
         self.future_symbol = {'type1': coin + 'USD_' + future_date}
 
         self.state = {}
+
+
+    def calculate_rsi(self, prices):
+        period = self.period
+        deltas = np.diff(prices)
+        seed = deltas[:period + 1]
+        up = seed[seed >= 0].sum() / period
+        down = -seed[seed < 0].sum() / period
+        rs = up / down
+        rsi = np.zeros_like(prices)
+        rsi[:period] = 100. - 100. / (1. + rs)
+
+        for i in range(period, len(prices)):
+            delta = deltas[i - 1]  # на один элемент меньше
+
+            if delta > 0:
+                up_val = delta
+                down_val = 0.
+            else:
+                up_val = 0.
+                down_val = -delta
+
+            up = (up * (period - 1) + up_val) / period
+            down = (down * (period - 1) + down_val) / period
+
+            rs = up / down
+            rsi[i] = 100. - 100. / (1. + rs)
+
+        return rsi[0]
 
     def update_symbols(self):
         self.spot_symbol = {'type1': self.coin +
@@ -213,6 +246,25 @@ class BinanceArbBot:
                 params={'symbol': self.spot_symbol['type1']})['bidPrice'])
             coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
                 params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
+            
+            while len(self.last_deals) < self.period:
+                self.last_deals.append(coin_bid1)
+                coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
+                params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
+                time.sleep(1)
+                print(self.last_deals)
+
+            rsi = self.calculate_rsi(self.last_deals)
+            while rsi < 70:
+                self.logger.info(f"Waiting for the perfect moment. Current rsi is {rsi}\n{self.last_deals}")
+                self.last_deals.popleft()
+                coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
+                params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
+                self.last_deals.append(coin_bid1)
+                rsi = self.calculate_rsi(list(self.last_deals))
+                time.sleep(120)
+
+                
             r = coin_bid1 / spot_ask1 - 1
 
             if True:
