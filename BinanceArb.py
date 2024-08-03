@@ -251,8 +251,8 @@ class BinanceArbBot:
                 self.last_deals.append(coin_bid1)
                 coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
                 params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
-                time.sleep(1)
-                print(self.last_deals)
+                time.sleep(10)
+                self.logger.info(self.last_deals)
 
             rsi = self.calculate_rsi(self.last_deals)
             while rsi < 70:
@@ -356,15 +356,14 @@ class BinanceArbBot:
                     'amount': futures_contract_num,
                     'type': 'MARKET'
                 }
-                print(f"future place order parameters: {params}")
+                self.logger.info(f"future place order parameters: {params}")
                 future_order_info = self.retry_wrapper(
                     func=self.binance_future_place_order,
                     params=params,
                     act_name='Short coin-margin orders')
-                print(future_order_info)
+                self.logger.info(future_order_info)
                 r = coin_bid1 / spot_ask1 - 1
-                print(
-                    f"OPENING FUTURES SHORT: coin_bid1 = {coin_bid1}, self.multiplier[self.coin] = {self.multiplier[self.coin]}")
+                self.logger.info(f"OPENING FUTURES SHORT: coin_bid1 = {coin_bid1}, self.multiplier[self.coin] = {self.multiplier[self.coin]}")
                 if future_order_info:
                     self.state = {
                         'quantity': futures_contract_num,
@@ -413,7 +412,7 @@ class BinanceArbBot:
                 initial_future_price,
                 future_buy_price,
                 0.0005,
-                self.amount,
+                math.floor(self.amount / initial_spot_price) * initial_spot_price,
                 self.futures_leverage)
             self.logger.info(
                 f'Calculated possible profit: {calculated_profit * self.amount}$')
@@ -441,7 +440,7 @@ class BinanceArbBot:
                 'type': 'MARKET'
             }
 
-            print(f"future place order: {params}")
+            self.logger.info(f"future place order: {params}")
             self.retry_wrapper(
                 func=self.binance_future_place_order,
                 params=params,
