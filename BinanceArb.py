@@ -526,6 +526,7 @@ class BinanceArbBot:
         while True:
             try:
                 self.close_position_utils()
+                return
             except Exception as e:
                 self.logger.critical(
                     f'Closing positions FAILED with Exception: {e}>>> Retrying...')
