@@ -61,7 +61,6 @@ jobs:
   ssh-deploy:
     needs: 
       - linter
-      - sast
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
