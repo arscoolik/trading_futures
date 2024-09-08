@@ -60,35 +60,6 @@ class BinanceArbBot:
 
         self.state = {}
 
-
-    def calculate_rsi(self, prices):
-        period = self.period
-        deltas = np.diff(prices)
-        seed = deltas[:period + 1]
-        up = seed[seed >= 0].sum() / period
-        down = -seed[seed < 0].sum() / period
-        rs = up / down
-        rsi = np.zeros_like(prices)
-        rsi[:period] = 100. - 100. / (1. + rs)
-
-        for i in range(period, len(prices)):
-            delta = deltas[i - 1]  # на один элемент меньше
-
-            if delta > 0:
-                up_val = delta
-                down_val = 0.
-            else:
-                up_val = 0.
-                down_val = -delta
-
-            up = (up * (period - 1) + up_val) / period
-            down = (down * (period - 1) + down_val) / period
-
-            rs = up / down
-            rsi[i] = 100. - 100. / (1. + rs)
-
-        return rsi[0]
-
     def update_symbols(self):
         self.spot_symbol = {'type1': self.coin +
                             'FDUSD', 'type2': self.coin + '/FDUSD'}
@@ -238,42 +209,65 @@ class BinanceArbBot:
 
         return transfer_info
 
+    def compute_rsi(self, prices, period=14):
+        if len(prices) < period:
+            return None  # Not enough data to compute RSI
+
+        deltas = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
+        gains = [delta if delta > 0 else 0 for delta in deltas]
+        losses = [-delta if delta < 0 else 0 for delta in deltas]
+
+        average_gain = sum(gains[-period:]) / period
+        average_loss = sum(losses[-period:]) / period
+
+        if average_loss == 0:
+            return 100  # RSI is 100 if no losses
+
+        rs = average_gain / average_loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
     def open_position(self):
         execute_num = 0
+
+        # Initialize self.last_deals if not already
+        if not hasattr(self, 'last_deals') or self.last_deals is None:
+            self.last_deals = []
+
+        # First populate self.last_deals with enough data
+        while len(self.last_deals) < self.period:
+            coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
+                params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
+            self.last_deals.append(coin_bid1)
+            time.sleep(1)
+            self.logger.info(f"Collecting initial data for RSI: {self.last_deals}")
 
         while True:
             spot_ask1 = float(self.exchange.publicGetTickerBookTicker(
                 params={'symbol': self.spot_symbol['type1']})['bidPrice'])
             coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
                 params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
-            
-            while len(self.last_deals) < self.period:
-                self.last_deals.append(coin_bid1)
-                coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
-                params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
-                time.sleep(10)
-                self.logger.info(self.last_deals)
 
-            rsi = self.calculate_rsi(self.last_deals)
-            while rsi < 70:
-                self.logger.info(f"Waiting for the perfect moment. Current rsi is {rsi}\n{self.last_deals}")
-                self.last_deals.popleft()
-                coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
-                params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
-                self.last_deals.append(coin_bid1)
-                rsi = self.calculate_rsi(list(self.last_deals))
-                time.sleep(120)
+            # Update self.last_deals
+            self.last_deals.append(coin_bid1)
+            if len(self.last_deals) > self.period + 1:
+                self.last_deals.pop(0)
 
-                
-            r = coin_bid1 / spot_ask1 - 1
+            # Compute RSI
+            rsi = self.compute_rsi(self.last_deals, self.period)
+            self.logger.info(f"RSI: {rsi}")
 
-            if True:
+            # Check if RSI > 70
+            if rsi is not None and rsi > 70:
+                # Proceed to open position
+                r = coin_bid1 / spot_ask1 - 1
+
                 self.logger.info(
                     'Spot %.4f < COIN-M %.4f -> Price Difference: %.4f%%' %
                     (float(spot_ask1), float(coin_bid1), r * 100))
                 self.logger.debug('!!! >>> Starting arbitrage...')
 
-                # Размещение ордера на споте
+                # Place spot order
                 price = float(spot_ask1) * (1 - self.slippage)
                 spot_amount = math.floor(self.amount / price)
                 params = {
@@ -287,7 +281,7 @@ class BinanceArbBot:
                     params=params,
                     act_name='Long spot orders')
                 start_time = time.time()
-                # Проверка успешности размещения ордера на споте
+                # Check if spot order was successfully placed
                 while (
                     self.exchange.fetch_balance()[
                         self.coin]['free'] < spot_amount):
@@ -320,12 +314,6 @@ class BinanceArbBot:
                             params=spot_order_params,
                             act_name='Long spot orders')
 
-                # Если ордер на споте успешно размещен, переводим средства на
-                # coin-margin
-
-                # balance = self.exchange.fetch_balance()
-                # num = balance[self.coin]['free']
-                # self.logger.debug(f'Amount to be transferred > {num}')
 
                 params = {
                     'currency': self.coin,
@@ -338,14 +326,13 @@ class BinanceArbBot:
                     params=params,
                     act_name='Transfer (SPOT --> COIN-M)')
 
-                # Проверка успешности перевода на coin-margin
+                # Check if transfer was successful
                 if not transfer_info:
                     self.logger.warning(
                         'Transfer to coin-margin failed, retrying...')
                     continue
 
-                # Если перевод на coin-margin успешно выполнен, размещаем ордер на coin-margin
-                # price = float(coin_bid1) * (1 - self.slippage)
+                # If transfer to coin-margin is successful, place order on coin-margin
                 coin_bid1 = float(self.exchange.dapiPublicGetTickerBookTicker(
                     params={'symbol': self.future_symbol['type1']})[0]['askPrice'])
                 futures_contract_num = math.floor(
@@ -356,7 +343,7 @@ class BinanceArbBot:
                     'amount': futures_contract_num,
                     'type': 'MARKET'
                 }
-                self.logger.info(f"future place order parameters: {params}")
+                self.logger.info(f"Future place order parameters: {params}")
                 future_order_info = self.retry_wrapper(
                     func=self.binance_future_place_order,
                     params=params,
@@ -375,12 +362,16 @@ class BinanceArbBot:
                     execute_num += 1
                     self.logger.info(
                         f"Number of opening executions: {execute_num}")
-
+                while len(self.last_deals) > 0:
+                    self.last_deals.pop(0)
                 if execute_num >= self.num_maximum:
                     self.logger.info(
                         'Maximum execution number reached >>> Position opening stops.')
                     break
-            time.sleep(5)  # Не перегружаем биржу
+            else:
+                self.logger.info(f"RSI is {rsi}, which is not greater than 70. Waiting...")
+            time.sleep(5)  # Do not overload the exchange
+
 
     def close_position_utils(self):
         """close positions for basis trading"""
@@ -418,12 +409,14 @@ class BinanceArbBot:
                 f'Calculated possible profit: {calculated_profit * self.amount}$')
 
             if not self.debug_enabled:
-                if calculated_profit < self.negative_threshold or calculated_profit > self.threshold:
+                if calculated_profit > self.threshold:
                     success_spread_difference_num += 1
                 else:
                     success_spread_difference_num = 0
+                    time.sleep(1)
                     continue
                 if success_spread_difference_num < self.required_iterations:
+                    time.sleep(1)
                     continue
 
             self.logger.debug(
@@ -463,9 +456,9 @@ class BinanceArbBot:
             self.logger.info(
                 f'Amount of {self.coin} in coin-margin account：{num}')
 
-            if num < self.amount:
-                self.logger.error(
-                    'Please ensure the coin-margin remaining balance is enough!')
+            # if num < self.amount:
+            #     self.logger.error(
+            #         'Please ensure the coin-margin remaining balance is enough!')
 
             price = spot_sell_price * (1 + self.slippage)
             params = {
@@ -482,14 +475,6 @@ class BinanceArbBot:
             start_time = time.time()
             required_coin_balance = 1 / \
                 self.multiplier[self.coin] * futures_balance
-            while self.exchange.fetch_balance()['FDUSD']['free'] < price * num:
-                self.logger.warning(
-                    f'Too many {self.coin} on spot account, required: {required_coin_balance}')
-                time.sleep(3)
-                if (time.time() - start_time) / 60 > 5:  # more than 5 mins
-                    self.logger.error(
-                        f'Already {(time.time() - start_time) // 60} minutes has passed trying to close SPOT')
-
             profit = (price * num - self.amount) / self.amount
             profit_usd = profit * self.amount
             # self.logger.info(
